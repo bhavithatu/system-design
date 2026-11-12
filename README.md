@@ -275,6 +275,30 @@ You might be asked to do some estimates by hand.  Refer to the [Appendix](#appen
 * [Powers of two table](#powers-of-two-table)
 * [Latency numbers every programmer should know](#latency-numbers-every-programmer-should-know)
 
+#### Worked example: estimate photo upload capacity
+
+Suppose a photo service has these requirements:
+
+* 2 million daily active users
+* 5 uploads per user per day
+* 3 MB per original photo
+* Peak traffic is 4 times the daily average
+
+Start with the number of writes:
+
+* Uploads per day = 2 million users × 5 uploads = 10 million uploads
+* Average write rate = 10 million ÷ 86,400 seconds ≈ 116 uploads per second
+* Peak write rate = 116 × 4 ≈ 464 uploads per second
+
+Then estimate data volume:
+
+* New storage per day = 10 million × 3 MB = 30 TB
+* Average inbound bandwidth = 30 TB ÷ 86,400 seconds ≈ 347 MB/s
+* Peak inbound bandwidth = 347 MB/s × 4 ≈ 1.4 GB/s
+* Raw storage for one year = 30 TB × 365 ≈ 11 PB
+
+These are starting estimates.  A production design should also budget for replication, thumbnails, metadata, failed uploads, and growth.  For example, three-way replication alone increases the one-year photo storage estimate from about 11 PB to about 33 PB.  State whether you use decimal or binary units and keep the same convention throughout the calculation.
+
 ### Source(s) and further reading
 
 Check out the following links to get a better idea of what to expect:
