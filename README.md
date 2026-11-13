@@ -602,6 +602,18 @@ Availability (Total) = 1 - (1 - Availability (Foo)) * (1 - Availability (Bar))
 
 If both `Foo` and `Bar` each had 99.9% availability, their total availability in parallel would be 99.9999%.
 
+#### Worked example: account for shared dependencies
+
+The parallel formula assumes failures are independent.  Replicas can still fail together when they share a database, network, availability zone, or another dependency.
+
+Suppose two API servers are each 99.9% available and fail independently.  Running them in parallel gives 99.9999% availability for the API tier.  If both servers depend on one database that is 99.9% available, the database is in sequence with that tier:
+
+```
+Availability (Total) = 99.9999% * 99.9% = 99.8999001%
+```
+
+The complete service is therefore only about 99.9% available, or roughly 8 hours 46 minutes of downtime per year.  Adding API replicas does not remove the shared database failure mode.  When estimating availability, draw the dependency path and identify common failure domains before multiplying component targets.
+
 ## Domain name system
 
 <p align="center">
