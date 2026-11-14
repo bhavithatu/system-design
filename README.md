@@ -1272,6 +1272,19 @@ Subsequent reads of data added to cache are fast.  Cache-aside is also referred 
 * Data can become stale if it is updated in the database.  This issue is mitigated by setting a time-to-live (TTL) which forces an update of the cache entry, or by using write-through.
 * When a node fails, it is replaced by a new, empty node, increasing latency.
 
+##### Worked example: prevent a cache stampede
+
+Suppose a product page receives 10,000 requests per second, but the database can safely handle only 500 uncached reads per second.  When the page's cache entry expires, many requests can observe the same miss and query the database at once.  This is a **cache stampede**, also called a thundering herd.
+
+Common mitigations include:
+
+* **Request coalescing (single-flight)** - Let one request refresh a key while the other requests wait for its result.  Coalescing inside one application process is not enough when many processes share the cache; use a short per-key distributed lease when coordination must span instances.
+* **Stale-while-revalidate** - Serve the recently expired value for a bounded interval while one worker refreshes it.  This protects latency and the database when brief staleness is acceptable.
+* **TTL jitter** - Add a small random offset to expiration times so many keys populated together do not expire together.  For example, a 10-minute TTL with ±10% jitter spreads expirations across a 2-minute window.
+* **Origin protection** - Apply concurrency limits, back pressure, or rate limits to database refreshes so cache failure cannot overwhelm the source of truth.
+
+A refresh lease should expire automatically in case its owner crashes.  The application also needs a policy for refresh failures: continue serving stale data for a limited time, return an error, or fall back to a degraded response.  The right choice depends on how much staleness the use case can tolerate.
+
 #### Write-through
 
 <p align="center">
