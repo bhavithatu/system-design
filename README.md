@@ -1395,6 +1395,20 @@ The user is not blocked and the job is processed in the background.  During this
 
 **[Amazon SQS](https://aws.amazon.com/sqs/)** is hosted but can have high latency and has the possibility of messages being delivered twice.
 
+#### Worked example: make message retries idempotent
+
+Suppose a worker receives a `CapturePayment` message, charges the payment provider, and crashes before acknowledging the message.  The broker cannot know that the charge succeeded, so it delivers the same message again.  A handler that treats every delivery as new can charge the customer twice.
+
+Design the workflow for at-least-once delivery:
+
+* Give the logical operation a stable idempotency key, such as `payment:{order_id}`.  A retry must reuse the same key rather than generate a new one.
+* Store the key and the completed result durably.  When the consumer sees a completed key, it returns the recorded result without repeating the side effect.
+* When calling an external payment provider, pass the same idempotency key to that provider and persist its response.  A local deduplication record alone cannot make an external charge atomic with a database write.
+* Acknowledge the message only after the result is durable.  Set the visibility timeout longer than normal processing time, and extend it when a legitimate job runs longer.
+* After a bounded number of failures, move the message to a dead-letter queue for inspection instead of retrying a poison message forever.
+
+"Exactly once" must cover the business side effect, not just queue delivery.  In practice, at-least-once delivery plus idempotent consumers is often the safer end-to-end design.
+
 ### Task queues
 
 Tasks queues receive tasks and their related data, runs them, then delivers their results.  They can support scheduling and can be used to run computationally-intensive jobs in the background.
