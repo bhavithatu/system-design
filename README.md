@@ -872,6 +872,18 @@ The master serves reads and writes, replicating writes to one or more slaves, wh
   <i><a href=http://www.slideshare.net/jboner/scalability-availability-stability-patterns/>Source: Scalability, availability, stability, patterns</a></i>
 </p>
 
+##### Worked example: preserve read-your-writes consistency
+
+Suppose a user changes their display name.  The write succeeds on the primary at position `P42`, but the next profile request is routed to a read replica that has applied changes only through `P40`.  The user sees the old name even though the update was acknowledged.
+
+A read-your-writes strategy can return the commit position with the write and carry it in the user's session.  For a later read, the router can:
+
+1. Choose a replica that has applied at least `P42`.
+2. Wait for a replica to reach `P42`, up to a small latency budget.
+3. Fall back to the primary if no replica catches up within that budget.
+
+Routing every read to the primary after every write is simpler, but it reduces read scaling.  A bounded window, such as primary reads for the next few seconds, is a practical alternative when the database does not expose replication positions.  Apply stronger read-your-writes behavior to account settings, payments, and other user-confirmed changes; feeds and analytics can often tolerate stale replica reads.
+
 ##### Disadvantage(s): master-slave replication
 
 * Additional logic is needed to promote a slave to a master.
