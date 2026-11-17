@@ -954,6 +954,22 @@ Similar to the advantages of [federation](#federation), sharding results in less
 
 Common ways to shard a table of users is either through the user's last name initial or the user's geographic location.
 
+##### Worked example: add a shard without remapping most keys
+
+Suppose requests are routed to eight shards with `hash(user_id) % 8`.  Changing the formula to `hash(user_id) % 9` when a ninth shard is added moves about eight ninths of the keys, even if the existing shards have enough capacity to keep most of their data.
+
+With consistent hashing, shards and keys are placed on a ring.  Adding one equally weighted shard to eight balanced shards moves roughly one ninth of the keys to the new owner.  Virtual nodes give each physical shard several positions on the ring, which produces a smoother distribution and makes differently sized shards easier to weight.
+
+An online move still needs an explicit migration:
+
+1. Publish a versioned routing map so clients agree on each key's owner.
+2. Copy the affected ranges while writes continue on the source.
+3. Replay changes made during the copy, or dual-write them with idempotent handling.
+4. Verify record counts, checksums, and replication lag before switching reads.
+5. Retire the old copy only after rollback is no longer needed.
+
+Consistent hashing balances key ranges, not request rates.  A single celebrity account or large tenant can remain a hot key; split or salt that key, cache its reads, or isolate it on dedicated capacity.
+
 ##### Disadvantage(s): sharding
 
 * You'll need to update your application logic to work with shards, which could result in complex SQL queries.
