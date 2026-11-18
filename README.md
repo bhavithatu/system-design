@@ -824,6 +824,21 @@ Related to this discussion are [microservices](https://en.wikipedia.org/wiki/Mic
 
 Pinterest, for example, could have the following microservices: user profile, follower, feed, search, photo upload, etc.
 
+#### Worked example: bound retry amplification
+
+Suppose a request passes through three retrying layers: an API gateway, an application service, and a downstream client.  If each layer makes one initial attempt plus two retries, one user request can produce up to `3 * 3 * 3 = 27` calls to the deepest dependency.  During an outage, those retries consume capacity needed for recovery and can turn a partial failure into a retry storm.
+
+To keep retries bounded:
+
+* Assign retry ownership instead of letting every layer retry independently.
+* Propagate an absolute request deadline.  Each hop should stop when the remaining time cannot cover another useful attempt.
+* Retry only transient failures and operations that are idempotent or protected by an idempotency key.
+* Use exponential backoff with jitter so clients do not retry in synchronized waves.
+* Limit both attempts per request and total retry traffic.  For example, a 10% retry budget at 10,000 original requests per second permits at most 1,000 retry attempts per second.
+* Use circuit breakers and load shedding when a dependency is overloaded; retries cannot create capacity.
+
+Track original attempts, retry attempts, and exhausted retry budgets separately.  A lower success rate accompanied by rising retry traffic is an early signal that retries are amplifying a failure.
+
 ### Service Discovery
 
 Systems such as [Consul](https://www.consul.io/docs/index.html), [Etcd](https://coreos.com/etcd/docs/latest), and [Zookeeper](http://www.slideshare.net/sauravhaloi/introduction-to-apache-zookeeper) can help services find each other by keeping track of registered names, addresses, and ports.  [Health checks](https://www.consul.io/intro/getting-started/checks.html) help verify service integrity and are often done using an [HTTP](#hypertext-transfer-protocol-http) endpoint.  Both Consul and Etcd have a built in [key-value store](#key-value-store) that can be useful for storing config values and other shared data.
