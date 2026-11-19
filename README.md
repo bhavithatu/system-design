@@ -747,6 +747,20 @@ Load balancers can also help with horizontal scaling, improving performance and 
     * Sessions can be stored in a centralized data store such as a [database](#database) (SQL, NoSQL) or a persistent [cache](#cache) (Redis, Memcached)
 * Downstream servers such as caches and databases need to handle more simultaneous connections as upstream servers scale out
 
+### Worked example: drain instances during deployment
+
+Suppose one application instance handles 50 requests per second and requests take 4 seconds on average.  [Little's law](https://en.wikipedia.org/wiki/Little%27s_law) estimates that the instance has about `50 * 4 = 200` requests in flight.  Terminating it immediately during a deployment can fail many of those requests even when the other instances are healthy.
+
+A graceful replacement sequence is:
+
+1. Mark the old instance as not ready so it stops receiving new requests.
+2. Wait for the load balancer's routing change to propagate.
+3. Let existing requests and connections drain, up to a shutdown deadline.
+4. Stop the process after in-flight work reaches zero, or cancel and safely retry the remaining work when the deadline expires.
+5. Start routing to the replacement only after its dependencies, connection pools, and essential caches are ready.
+
+Liveness and readiness answer different questions.  A liveness check determines whether the process should be restarted; a readiness check determines whether it should receive traffic.  New instances can use slow start or a low initial weight so they warm up before taking a full share of requests.  Monitor forced terminations, drain duration, and response errors during deployments to verify that the deadline is long enough.
+
 ### Disadvantage(s): load balancer
 
 * The load balancer can become a performance bottleneck if it does not have enough resources or if it is not configured properly.
