@@ -510,6 +510,26 @@ After a write, reads will eventually see it (typically within milliseconds).  Da
 
 This approach is seen in systems such as DNS and email.  Eventual consistency works well in highly available systems.
 
+#### Worked example: tune read and write quorums
+
+Let `N` be the number of replicas, `W` the acknowledgements required for a successful write, and `R` the replica responses required for a read.  When `R + W > N`, every read quorum overlaps the replicas that acknowledged the latest completed write.
+
+For `N = 3`, choose `W = 2` and `R = 2`:
+
+```
+R + W = 2 + 2 = 4 > 3
+```
+
+A completed write exists on at least two replicas, and any read of two replicas reaches at least one of them.  The coordinator must compare versions from both read responses, return the newest value, and can repair the stale replica in the background.
+
+Different quorum choices move cost between operations:
+
+* `W = 3, R = 1` makes writes wait for every replica but allows a fast read from one replica.
+* `W = 1, R = 3` acknowledges writes quickly but makes reads wait for every replica.
+* `W = 1, R = 1` has low latency, but the read and write can hit different replicas and return stale data.
+
+Quorum overlap alone does not guarantee linearizability.  The system still needs version ordering and conflict handling for concurrent writes.  Sloppy quorums that temporarily write outside the normal replica set can also remove the expected overlap until hinted data is transferred back.
+
 ### Strong consistency
 
 After a write, reads will see it.  Data is replicated synchronously.
