@@ -1708,6 +1708,22 @@ Security is a broad topic.  Unless you have considerable experience, a security 
 * Use parameterized queries to prevent SQL injection.
 * Use the principle of [least privilege](https://en.wikipedia.org/wiki/Principle_of_least_privilege).
 
+### Worked example: size a token-bucket rate limit
+
+Suppose each tenant may send 100 requests per second with a burst of up to 200 requests.  Configure a token bucket with a capacity of 200 tokens and a refill rate of 100 tokens per second.  Each request consumes one token.
+
+After an idle period, 200 requests can pass immediately.  If 250 arrive at once, the first 200 consume the full bucket and the remaining 50 are rejected or delayed.  One second later, up to 100 new tokens are available.  This allows short bursts without permitting a sustained rate above 100 requests per second.
+
+Implementation details affect whether the limit is accurate:
+
+* Apply the limit before expensive authentication-independent work, database queries, or downstream calls.
+* Choose a key that matches the policy, such as a user, API key, tenant, or endpoint.  An IP address alone can group unrelated users behind a proxy or allow one user to rotate addresses.
+* Use an atomic shared counter or deliberately partition ownership of each key.  Independent 100-request-per-second buckets on ten application instances would allow up to 1,000 requests per second.
+* Return HTTP `429 Too Many Requests` with a useful `Retry-After` value when clients can retry.
+* Define behavior when the rate-limit store is unavailable.  Fail open for low-risk traffic when availability matters most, or fail closed for abuse-sensitive and costly operations.
+
+Track allowed, throttled, and store-error decisions by policy and tenant.  A global limit protects total capacity, while per-tenant limits prevent one customer from consuming the entire global budget.
+
 ### Source(s) and further reading
 
 * [API security checklist](https://github.com/shieldfy/API-Security-Checklist)
