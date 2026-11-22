@@ -701,6 +701,16 @@ A [time-to-live (TTL)](https://en.wikipedia.org/wiki/Time_to_live) determines ho
 
 Sites with heavy traffic work well with pull CDNs, as traffic is spread out more evenly with only recently-requested content remaining on the CDN.
 
+### Worked example: design a safe CDN cache key
+
+Suppose `/products/42` changes its response by language, currency, and compression format.  A cache key that contains only the path can serve an English USD response to a user who requested French EUR content.  Include every input that changes the representation, such as a normalized currency query parameter and selected `Accept-Language` and `Accept-Encoding` values.  Header-based variants can be declared with the HTTP `Vary` response header when the CDN supports it correctly.
+
+Keep unrelated inputs out of the key.  Tracking parameters such as `utm_source` create separate objects with identical content unless they are removed or normalized.  With 10 languages, 3 currencies, and 2 compression formats, one product path can already have `10 * 3 * 2 = 60` legitimate variants.
+
+Personalized responses need stricter handling.  Prefer `Cache-Control: private` or `no-store` when a response contains user data.  Adding a user ID or authorization token to a shared cache key can prevent cross-user leakage, but it also creates high-cardinality entries and little cache sharing.  Never let an authenticated response enter a public cache under a key that an unauthenticated request can reuse.
+
+For immutable assets, put a content hash in the URL, such as `app.a1b2c3.js`, and use a long TTL.  A deployment publishes a new URL instead of purging every edge.  For mutable URLs, use shorter TTLs or an explicit purge, and design the origin to handle the temporary traffic spike after invalidation.
+
 ### Disadvantage(s): CDN
 
 * CDN costs could be significant depending on traffic, although this should be weighed with additional costs you would incur not using a CDN.
