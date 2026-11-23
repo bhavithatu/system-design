@@ -660,6 +660,20 @@ Services such as [CloudFlare](https://www.cloudflare.com/dns/) and [Route 53](ht
 * [Latency-based](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html)
 * [Geolocation-based](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-geo.html)
 
+### Worked example: plan a DNS cutover
+
+Suppose `api.example.com` points to an old endpoint with a one-hour TTL, and a migration needs a 60-second cutover window.
+
+1. Lower the TTL from 3,600 seconds to 60 seconds at least one old TTL before the planned change.  This gives resolver caches holding the old record time to expire and fetch the shorter TTL.
+2. Verify the new endpoint independently, then change the record while keeping the old endpoint healthy.
+3. Monitor traffic at both endpoints.  Keep the overlap long enough for clients that ignore or cap DNS TTLs differently.
+4. If the new endpoint fails, restore the old record, but continue serving both endpoints while the rollback propagates.
+5. Raise the TTL again after traffic has stabilized.
+
+A health-checked DNS failover changes answers for new lookups; it cannot revoke an address already cached by a resolver, operating system, browser, or long-lived connection.  DNS should therefore complement endpoint health checks and connection-level failover rather than replace them.
+
+Short TTLs improve cutover speed but increase DNS traffic.  Reducing 3,600 seconds to 60 seconds lets each active resolver refresh up to `3,600 / 60 = 60` times more often.  Also plan for negative caching: an accidental `NXDOMAIN` response can be cached according to the zone's negative-cache TTL even after the missing record is restored.
+
 ### Disadvantage(s): DNS
 
 * Accessing a DNS server introduces a slight delay, although mitigated by caching described above.
