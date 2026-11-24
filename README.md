@@ -1520,6 +1520,22 @@ Tasks queues receive tasks and their related data, runs them, then delivers thei
 
 If queues start to grow significantly, the queue size can become larger than memory, resulting in cache misses, disk reads, and even slower performance.  [Back pressure](http://mechanical-sympathy.blogspot.com/2012/05/apply-back-pressure-when-overloaded.html) can help by limiting the queue size, thereby maintaining a high throughput rate and good response times for jobs already in the queue.  Once the queue fills up, clients get a server busy or HTTP 503 status code to try again later.  Clients can retry the request at a later time, perhaps with [exponential backoff](https://en.wikipedia.org/wiki/Exponential_backoff).
 
+#### Worked example: calculate queue growth and recovery
+
+Suppose jobs arrive at 1,200 per second while workers can complete 1,000 per second:
+
+```
+Backlog growth = arrival rate - service rate
+               = 1,200 - 1,000
+               = 200 jobs per second
+```
+
+The queue grows by 12,000 jobs each minute.  A capacity of 60,000 jobs fills in `60,000 / 200 = 300` seconds, or 5 minutes.  If arrivals later fall to 800 per second, the workers have 200 jobs per second of spare capacity, so a full 60,000-job backlog also takes 5 minutes to drain.
+
+Queueing delay can become unacceptable before storage is full.  With a 1,000-job-per-second service rate, 30,000 jobs ahead of a new FIFO job imply roughly 30 seconds of waiting.  If 30 seconds is the limit, start admission control, load shedding, or degraded processing near that threshold instead of waiting for the 60,000-job hard cap.
+
+Monitor oldest-job age as well as queue depth because jobs can have different costs.  Autoscale consumers only while downstream databases and services have spare capacity; otherwise more workers move the bottleneck and can worsen the outage.  When rejecting work, give clients a retry signal with backoff and jitter so recovery does not trigger another synchronized surge.
+
 ### Disadvantage(s): asynchronism
 
 * Use cases such as inexpensive calculations and realtime workflows might be better suited for synchronous operations, as introducing queues can add delays and complexity.
