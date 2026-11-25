@@ -1118,6 +1118,33 @@ Benchmarking and profiling might point you to the following optimizations.
 
 * In some cases, the [query cache](https://dev.mysql.com/doc/refman/5.7/en/query-cache.html) could lead to [performance issues](https://www.percona.com/blog/2016/10/12/mysql-5-7-performance-tuning-immediately-after-installation/).
 
+##### Worked example: paginate with a stable cursor
+
+Suppose an API lists the newest events first.  Offset pagination is easy to express:
+
+```sql
+SELECT id, created_at, payload
+FROM events
+ORDER BY created_at DESC, id DESC
+LIMIT 50 OFFSET 100000;
+```
+
+For a deep page, the database may still need to walk past and discard 100,000 rows before returning 50.  Inserts ahead of the current offset can also shift later pages, causing a client to see a row twice or miss one during a multi-page traversal.
+
+Keyset pagination resumes after the last row that the client received:
+
+```sql
+SELECT id, created_at, payload
+FROM events
+WHERE (created_at, id) < (:last_created_at, :last_id)
+ORDER BY created_at DESC, id DESC
+LIMIT 50;
+```
+
+A composite index such as `(created_at DESC, id DESC)` lets the database seek to the cursor and scan the next 50 entries.  Return both values from the final row in an opaque cursor.  The unique `id` is a stable tie-breaker when several events share a timestamp.  Databases without row-value comparisons can express the predicate as `created_at < :last_created_at OR (created_at = :last_created_at AND id < :last_id)`.
+
+Keep the filters and sort order fixed between requests.  Keyset pagination works well for feeds and deep sequential scans, but it does not naturally support jumping to an arbitrary page number.  If the entire traversal must represent one exact point in time, pair the cursor with snapshot or version semantics supported by the data store.
+
 ##### Source(s) and further reading: SQL tuning
 
 * [Tips for optimizing MySQL queries](http://aiddroid.com/10-tips-optimizing-mysql-queries-dont-suck/)
