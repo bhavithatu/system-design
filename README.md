@@ -1730,6 +1730,37 @@ PUT /someresources/anId
 
 REST is focused on exposing data.  It minimizes the coupling between client/server and is often used for public HTTP APIs.  REST uses a more generic and uniform method of exposing resources through URIs, [representation through headers](https://github.com/for-GET/know-your-http-well/blob/master/headers.md), and actions through verbs such as GET, POST, PUT, DELETE, and PATCH.  Being stateless, REST is great for horizontal scaling and partitioning.
 
+#### Worked example: prevent lost updates with optimistic concurrency
+
+Suppose two clients read the same document at version 17.  The first client changes the title, while the second changes the owner.  If both send unconditional updates, the later request can overwrite the earlier change with stale data.
+
+Return a version token with each representation:
+
+```http
+HTTP/1.1 200 OK
+ETag: "17"
+```
+
+Require the client to send that token when updating the resource:
+
+```http
+PUT /documents/42
+If-Match: "17"
+Content-Type: application/json
+```
+
+The service must enforce the precondition atomically with the write.  A version column can implement the compare-and-swap:
+
+```sql
+UPDATE documents
+SET title = :title, owner_id = :owner_id, version = version + 1
+WHERE id = 42 AND version = 17;
+```
+
+Exactly one update can affect the row at version 17.  If the affected-row count is zero, return `412 Precondition Failed` so the client can fetch the current representation, reconcile its change, and retry with the new ETag.  Do not implement the version check as a separate read followed by an unconditional write, because another update can occur between those operations.
+
+The token can be an integer version, a content hash, or another opaque value, but it must change whenever the representation relevant to the update changes.  Optimistic concurrency works well when conflicts are uncommon.  It detects stale writes on one resource; transactions or stronger coordination are still needed for invariants that span multiple rows or services.
+
 #### Disadvantage(s): REST
 
 * With REST being focused on exposing data, it might not be a good fit if resources are not naturally organized or accessed in a simple hierarchy.  For example, returning all updated records from the past hour matching a particular set of events is not easily expressed as a path.  With REST, it is likely to be implemented with a combination of URI path, query parameters, and possibly the request body.
