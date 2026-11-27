@@ -598,6 +598,27 @@ Availability is often quantified by uptime (or downtime) as a percentage of time
 | Downtime per week   | 1m 5s              |
 | Downtime per day    | 8.6s               |
 
+#### Worked example: turn an availability target into an error budget
+
+A 99.9% availability objective permits 0.1% unavailability.  Over a fixed 30-day window:
+
+```
+Total time = 30 * 24 * 60 = 43,200 minutes
+Error budget = 43,200 * 0.001 = 43.2 minutes
+```
+
+If an incident consumes 20 minutes and a failed deployment consumes another 15 minutes, 8.2 minutes remain for the rest of the window.  A team can use the remaining budget when deciding whether to continue risky releases or prioritize reliability work.
+
+The same objective can be request-based.  For 10 million eligible requests, a 0.1% budget allows 10,000 unsuccessful requests.  Define the service level indicator before measuring it, for example:
+
+```
+Availability SLI = successful eligible requests / all eligible requests
+```
+
+Decide in advance which requests are eligible and what counts as success.  Excluding client errors, health checks, or planned maintenance after an incident changes the target instead of measuring it consistently.
+
+Burn rate shows how quickly the budget is being spent.  At a 99.9% objective, a sustained 1% error rate is a `1% / 0.1% = 10x` burn rate and would exhaust a 30-day budget in about three days.  Short, fast-burn alerts catch severe incidents; longer windows reveal slower regressions without paging on brief noise.
+
 #### Availability in parallel vs in sequence
 
 If a service consists of multiple components prone to failure, the service's overall availability depends on whether the components are in sequence or in parallel.
